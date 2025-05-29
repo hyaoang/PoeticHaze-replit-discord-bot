@@ -674,6 +674,7 @@ def generate_stats_plot_buffer(
         frequencies = [item[1] for item in sorted_counts]
         bars = ax.bar(guess_numbers, frequencies, color='#007bff')
         max_frequency = max(frequencies) if frequencies else 0
+```text
         ax.set_xlabel("猜測次數")
         ax.set_ylabel("完成次數")
         ax.set_title("猜測次數統計圖")
@@ -898,7 +899,11 @@ def get_or_initialize_game_state(
 
     # Fix: Use .get() for safe access in print statement
     # Fix: Use .get() for safe access in print statement
-    print(f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'")
+    # Fix: Use .get() for safe access in print statement
+    if state is not None:
+        print(f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'")
+    else:
+        print(f"頻道 {channel_id} 狀態為 None")
     # The 'state' variable is confirmed to be a dictionary here
     return state, None, state.get('current_poem_source', DEFAULT_POEMS_SOURCE)
 
@@ -1283,7 +1288,6 @@ async def guess_poem(ctx: commands.Context,
 
         game_state['guess_count_history'] = game_state.get(
             'guess_count_history', [])  # Ensure list exists
-        game_state['guess_count_history'].append(current_guess_count)
         game_state['guess_count'] = 0
         response_message += "使用 `!poem` 開始新一輪遊戲，或使用 `!newpoem` 切換詩句並開始新遊戲，或使用 `!stats` 查看統計。\n"
 
