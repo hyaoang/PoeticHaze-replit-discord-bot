@@ -5,3 +5,24 @@ description = ""
 authors = ["Your Name <you@example.com>"]
 requires-python = ">=3.11"
 dependencies = []
+
+[tool.poetry]
+name = "main"
+version = "0.1"
+description = "ha"
+authors = ["hyaoang"]
+license = "none"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+discord-py = "^2.5.2"
+matplotlib = "^3.10.3"
+numpy = "^2.2.6"
+scipy = "^1.15.3"
+fastdtw = "^0.3.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
