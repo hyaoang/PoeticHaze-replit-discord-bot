@@ -897,18 +897,15 @@ def get_or_initialize_game_state(
         return state, None, current_source
 
     # Fix: Use .get() for safe access in print statement
-    # Fix: Use .get() for safe access in print statement
-    # Fix: Use .get() for safe access in print statement
     if state is not None:
         print(
             f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'"
         )
-    else:
-        # Fix: Use .get() for safe access in print statement
-        print(f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'")
-        assert state is not None # Add assertion to help static analysis
-        # The 'state' variable is confirmed to be a dictionary here
         return state, None, state.get('current_poem_source', DEFAULT_POEMS_SOURCE)
+    else:
+        # This should not happen since we initialize state above if it's invalid
+        print(f"頻道 {channel_id} 狀態異常：應該已經初始化但仍為 None")
+        return None, "遊戲狀態初始化失敗", DEFAULT_POEMS_SOURCE
 
 
 intents = discord.Intents.default()
