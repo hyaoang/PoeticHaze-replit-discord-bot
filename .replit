@@ -3,7 +3,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["imagemagick_light", "python312Packages.open-interpreter"]
+packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "gobject-introspection", "gtk3", "imagemagick_light", "libxcrypt", "pkg-config", "python312Packages.open-interpreter", "qhull", "tcl", "tk", "xsimd"]
 
 [unitTest]
 language = "python3"

@@ -674,7 +674,6 @@ def generate_stats_plot_buffer(
         frequencies = [item[1] for item in sorted_counts]
         bars = ax.bar(guess_numbers, frequencies, color='#007bff')
         max_frequency = max(frequencies) if frequencies else 0
-```text
         ax.set_xlabel("猜測次數")
         ax.set_ylabel("完成次數")
         ax.set_title("猜測次數統計圖")
@@ -901,11 +900,15 @@ def get_or_initialize_game_state(
     # Fix: Use .get() for safe access in print statement
     # Fix: Use .get() for safe access in print statement
     if state is not None:
-        print(f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'")
+        print(
+            f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'"
+        )
     else:
-        print(f"頻道 {channel_id} 狀態為 None")
-    # The 'state' variable is confirmed to be a dictionary here
-    return state, None, state.get('current_poem_source', DEFAULT_POEMS_SOURCE)
+        # Fix: Use .get() for safe access in print statement
+        print(f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'")
+        assert state is not None # Add assertion to help static analysis
+        # The 'state' variable is confirmed to be a dictionary here
+        return state, None, state.get('current_poem_source', DEFAULT_POEMS_SOURCE)
 
 
 intents = discord.Intents.default()
@@ -1518,8 +1521,7 @@ async def set_thresholds(ctx: commands.Context, thresh1: float,
     game_state = games.get(ctx.channel.id)
 
     if game_state is None:  # Check if game_state exists for this channel
-        await ctx.send(
-            f"頻道 {ctx.channel.mention} 目前沒有正在進行的遊戲狀態。請先使用 `!poem` 開始新遊戲。")
+        await ctx.send(f"此頻道目前沒有正在進行的遊戲狀態。請先使用 `!poem` 開始新遊戲。")
         return
 
     game_state['thresholds'] = {'thresh1': thresh1, 'thresh2': thresh2}
