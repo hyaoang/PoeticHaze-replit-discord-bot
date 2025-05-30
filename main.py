@@ -690,6 +690,7 @@ def generate_stats_plot_buffer(
     try:
         plt.tight_layout()
         fig.savefig(buf, format='png')
+```python
         buf.seek(0)
         return buf.getvalue()
     except Exception as e:
@@ -1014,7 +1015,11 @@ async def guess(interaction: discord.Interaction, guess_line: str):
             f"你的猜測詩句中包含不合法的字元: {''.join(missing_chars)}. 請輸入常見漢字.")
         return
 
-    game_state = games.get(interaction.channel_id)
+    if interaction.channel is None:
+        await interaction.followup.send("此指令只能在頻道中使用。")
+        return
+
+    game_state = games.get(interaction.channel.id)
 
     if game_state is None or any(
             k not in game_state
@@ -1035,8 +1040,8 @@ async def guess(interaction: discord.Interaction, guess_line: str):
         await interaction.followup.send(
             f"內部錯誤: 當前目標詩句 '{target_line}' 包含無效字元或不在當前題庫中. 請使用 `/newpoem` 重新開始遊戲."
         )
-        if interaction.channel_id in games:
-            del games[interaction.channel_id]
+    if interaction.channel.id in games:
+        del games[interaction.channel.id]
         return
 
     game_state['guess_count'] = game_state.get('guess_count', 0) + 1
@@ -1264,10 +1269,8 @@ async def guess(interaction: discord.Interaction, guess_line: str):
             else:
                 response_message += '詩詞內容無效.\n'
 
-        game_state['guess_count_history'] = game_state.get(
-            'guess_count_history', [])
         game_state['guess_count_history'].append(current_guess_count)
-        del games[interaction.channel_id]
+        del games[interaction.channel.id]
 
         response_message += "使用 `/poem` 開始新一輪遊戲，或使用 `/newpoem` 切換詩句並開始新遊戲，或使用 `/stats` 查看統計。\n"
 
@@ -1308,10 +1311,8 @@ async def guess(interaction: discord.Interaction, guess_line: str):
             else:
                 response_message += '詩詞內容無效.\n'
 
-        game_state['guess_count_history'] = game_state.get(
-            'guess_count_history', [])
         game_state['guess_count_history'].append(current_guess_count)
-        del games[interaction.channel_id]
+        del games[interaction.channel.id]
 
         response_message += "使用 `/poem` 開始新一輪遊戲，或使用 `/newpoem` 切換詩句並開始新遊戲，或使用 `/stats` 查看統計。\n"
 
@@ -1387,8 +1388,8 @@ async def newpoem(interaction: discord.Interaction,
 
     if init_error or game_state is None:
         await interaction.followup.send(f"無法初始化新遊戲: {init_error or '狀態無效'}")
-        if interaction.channel_id in games:
-            del games[interaction.channel_id]
+        if interaction.channel.id in games:
+            del games[interaction.channel.id]
         return
 
     target_line = game_state['target_line']
@@ -1448,7 +1449,11 @@ async def stats(interaction: discord.Interaction):
 
     await interaction.response.defer()
 
-    game_state = games.get(interaction.channel_id)
+    if interaction.channel is None:
+        await interaction.followup.send("此指令只能在頻道中使用。")
+        return
+
+    game_state = games.get(interaction.channel.id)
 
     guess_count_history = game_state.get('guess_count_history',
                                          []) if game_state else []
@@ -1486,7 +1491,11 @@ async def difficulty(interaction: discord.Interaction, level: int):
         await interaction.followup.send(f"無效的難度等級。請輸入 1 到 6 之間的數字。")
         return
 
-    game_state = games.get(interaction.channel_id)
+    if interaction.channel is None:
+        await interaction.followup.send("此指令只能在頻道中使用。")
+        return
+
+    game_state = games.get(interaction.channel.id)
 
     if game_state is None or any(
             k not in game_state
@@ -1496,7 +1505,7 @@ async def difficulty(interaction: discord.Interaction, level: int):
 
     thresh1, thresh2 = DIFFICULTY_THRESHOLDS[level]
     game_state['thresholds'] = {'thresh1': thresh1, 'thresh2': thresh2}
-    games[interaction.channel_id] = game_state
+    games[interaction.channel.id] = game_state
 
     await interaction.followup.send(
         f"已將遊戲難度設定為等級 {level} (閾值: 黑 < {thresh1}, 灰 < {thresh2}).")
@@ -1519,7 +1528,11 @@ async def set_thresholds_cmd(interaction: discord.Interaction, thresh1: float,
         await interaction.followup.send("無效的閾值輸入。請確保 0 ≤ 黑閾值 ≤ 灰閾值。")
         return
 
-    game_state = games.get(interaction.channel_id)
+    if interaction.channel is None:
+        await interaction.followup.send("此指令只能在頻道中使用。")
+        return
+
+    game_state = games.get(interaction.channel.id)
 
     if game_state is None or any(
             k not in game_state
@@ -1528,7 +1541,7 @@ async def set_thresholds_cmd(interaction: discord.Interaction, thresh1: float,
         return
 
     game_state['thresholds'] = {'thresh1': thresh1, 'thresh2': thresh2}
-    games[interaction.channel_id] = game_state
+    games[interaction.channel.id] = game_state
 
     await interaction.followup.send(f"已將閾值設定為：黑 < {thresh1}, 灰 < {thresh2}")
 
