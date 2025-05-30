@@ -690,7 +690,7 @@ def generate_stats_plot_buffer(
     try:
         plt.tight_layout()
         fig.savefig(buf, format='png')
-```python
+
         buf.seek(0)
         return buf.getvalue()
     except Exception as e:
