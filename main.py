@@ -802,7 +802,7 @@ def get_or_initialize_game_state(
 
         if is_valid:
             print(
-                f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'"
+                f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', DEFAULT_POEMS_SOURCE), '未知')}'"
             )
             return state, None, state.get('current_poem_source',
                                           DEFAULT_POEMS_SOURCE)
