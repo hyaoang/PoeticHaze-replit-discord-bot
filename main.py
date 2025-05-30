@@ -692,6 +692,7 @@ def generate_stats_plot_buffer(
         fig.savefig(buf, format='png')
 
         buf.seek(0)
+```python
         return buf.getvalue()
     except Exception as e:
         print(f"生成統計圖表時發生錯誤: {e}")
@@ -1019,7 +1020,10 @@ async def guess(interaction: discord.Interaction, guess_line: str):
         await interaction.followup.send("此指令只能在頻道中使用。")
         return
 
-    game_state = games.get(interaction.channel.id)
+    try:
+        game_state = games.get(interaction.channel_id)
+    except:
+        game_state = None
 
     if game_state is None or any(
             k not in game_state
@@ -1057,15 +1061,15 @@ async def guess(interaction: discord.Interaction, guess_line: str):
         messages.append(f"警告: 遊戲狀態字元歷史記錄長度異常 ({len(char_histories)}). 重置歷史記錄.")
         char_histories = []
         for char in target_line:
-            stroke_paths = ALL_CHARACTERS_DATA.get(char, [])
-            stroke_histories = [{
-                'min_dist': float('inf'),
-                'best_guess_char': None,
-                'best_guess_stroke_index': None
-            } for _ in range(len(stroke_paths))]
+            stroke_paths = ALL_CHARACTERS_DATA[char]
             char_histories.append({
-                'target_char': char,
-                'stroke_histories': stroke_histories
+                'target_char':
+                char,
+                'stroke_histories': [{
+                    'min_dist': float('inf'),
+                    'best_guess_char': None,
+                    'best_guess_stroke_index': None
+                } for _ in range(len(stroke_paths))]
             })
         game_state['char_histories'] = char_histories
 
@@ -1361,8 +1365,7 @@ async def guess(interaction: discord.Interaction, guess_line: str):
 @app_commands.describe(source=f'選擇題庫來源: {", ".join(POEMS_SOURCES.keys())}')
 async def newpoem(interaction: discord.Interaction,
                   source: str = DEFAULT_POEMS_SOURCE):
-    if GAME_LOAD_ERROR:
-        await interaction.response.send_message(
+    if GAME_LOAD_ERROR:        await interaction.response.send_message(
             f"遊戲資料載入失敗，無法開始新遊戲: {GAME_LOAD_ERROR}", ephemeral=True)
         return
 
@@ -1453,7 +1456,10 @@ async def stats(interaction: discord.Interaction):
         await interaction.followup.send("此指令只能在頻道中使用。")
         return
 
-    game_state = games.get(interaction.channel.id)
+    try:
+        game_state = games.get(interaction.channel_id)
+    except:
+        game_state = None
 
     guess_count_history = game_state.get('guess_count_history',
                                          []) if game_state else []
@@ -1495,7 +1501,10 @@ async def difficulty(interaction: discord.Interaction, level: int):
         await interaction.followup.send("此指令只能在頻道中使用。")
         return
 
-    game_state = games.get(interaction.channel.id)
+    try:
+        game_state = games.get(interaction.channel_id)
+    except:
+        game_state = None
 
     if game_state is None or any(
             k not in game_state
@@ -1505,7 +1514,7 @@ async def difficulty(interaction: discord.Interaction, level: int):
 
     thresh1, thresh2 = DIFFICULTY_THRESHOLDS[level]
     game_state['thresholds'] = {'thresh1': thresh1, 'thresh2': thresh2}
-    games[interaction.channel.id] = game_state
+    games[interaction.channel_id] = game_state
 
     await interaction.followup.send(
         f"已將遊戲難度設定為等級 {level} (閾值: 黑 < {thresh1}, 灰 < {thresh2}).")
@@ -1531,8 +1540,10 @@ async def set_thresholds_cmd(interaction: discord.Interaction, thresh1: float,
     if interaction.channel is None:
         await interaction.followup.send("此指令只能在頻道中使用。")
         return
-
-    game_state = games.get(interaction.channel.id)
+    try:
+        game_state = games.get(interaction.channel_id)
+    except:
+        game_state = None
 
     if game_state is None or any(
             k not in game_state
@@ -1541,7 +1552,7 @@ async def set_thresholds_cmd(interaction: discord.Interaction, thresh1: float,
         return
 
     game_state['thresholds'] = {'thresh1': thresh1, 'thresh2': thresh2}
-    games[interaction.channel.id] = game_state
+    games[interaction.channel_id] = game_state
 
     await interaction.followup.send(f"已將閾值設定為：黑 < {thresh1}, 灰 < {thresh2}")
 
