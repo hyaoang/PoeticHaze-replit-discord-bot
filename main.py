@@ -15,8 +15,9 @@ from scipy.spatial.distance import euclidean
 import matplotlib.font_manager as fm
 import discord
 from discord.ext import commands
+from discord import app_commands
 from collections import deque, Counter
-import typing  # 引入 typing 模組以便使用 Optional
+import typing
 
 DATA_FILENAME = "makemeahanzi/graphics.txt"
 POEMS_SOURCES = {'poems.json': '唐詩三百首', 'easypoems.json': '常見唐詩(較簡單)'}
@@ -47,6 +48,15 @@ if os.path.exists(FONT_PATH):
         traceback.print_exc()
 else:
     print(f"警告: 中文字體檔案未找到於 {FONT_PATH}. 中文字符可能無法正常顯示.")
+
+DIFFICULTY_THRESHOLDS = {
+    1: [500, 1000],
+    2: [1000, 1500],
+    3: [2000, 2500],
+    4: [4000, 6000],
+    5: [8000, 10000],
+    6: [12000, 20000]
+}
 
 
 def parse_svg_path(
@@ -227,7 +237,7 @@ def calculate_stroke_centroid(path_string: str) -> np.ndarray:
         for segment_list in segments:
             if isinstance(segment_list, list):
                 all_points.extend(segment_list)
-        all_points_np: np.ndarray = np.array(all_points)  # Add type hint
+        all_points_np: np.ndarray = np.array(all_points)
         if all_points_np.shape[0] > 0:
             return np.mean(all_points_np, axis=0)
         else:
@@ -236,12 +246,10 @@ def calculate_stroke_centroid(path_string: str) -> np.ndarray:
                 if seg_list and len(seg_list) > 0:
                     first_point = np.array(seg_list[0])
                     break
-            # Ensure the return value is always a NumPy array of expected shape
             return first_point if first_point is not None and first_point.shape == (
                 2, ) else np.array([512.0, 512.0])
     except Exception as e:
         print(f"計算質心時發生錯誤: {e}")
-        # Ensure the return value is always a NumPy array of expected shape
         return np.array([512.0, 512.0])
 
 
@@ -325,7 +333,6 @@ def load_poems_from_source(
                             break
                     if is_valid_line:
                         valid_lines.append(line)
-                        # Ensure content is a list of strings for poem_info_map
                         poem_info_map[line] = {
                             'title':
                             title,
@@ -379,11 +386,11 @@ def get_stroke_point_sequences_with_original_index(
                 ]
 
             all_points_for_stroke: np.ndarray = np.array(
-                all_points_for_stroke_list)  # Add type hint
+                all_points_for_stroke_list)
 
             if all_points_for_stroke.shape[0] >= 2:
                 center = np.mean(all_points_for_stroke, axis=0)
-                processed_sequence: np.ndarray = all_points_for_stroke - center  # Add type hint
+                processed_sequence: np.ndarray = all_points_for_stroke - center
                 stroke_point_sequences_with_original_index.append(
                     (processed_sequence, original_stroke_index))
             else:
@@ -429,7 +436,7 @@ def get_path_outline_points(path_string: str,
             point for segment in segments if isinstance(segment, list)
             for point in segment if isinstance(point, list) and len(point) == 2
         ]
-    all_points: np.ndarray = np.array(all_points_list)  # Add type hint
+    all_points: np.ndarray = np.array(all_points_list)
     return all_points
 
 
@@ -461,7 +468,6 @@ def plot_solid_black_character(
         try:
             outline_points = get_path_outline_points(path_str,
                                                      num_curve_points=30)
-            # Check if it's a valid numpy array with expected dimensions before plotting
             if isinstance(
                     outline_points, np.ndarray
             ) and outline_points.ndim == 2 and outline_points.shape[0] > 0:
@@ -515,7 +521,6 @@ def plot_character_colored_by_history(
         print(f"繪圖錯誤: 目標字元 '{target_char}' 沒有筆畫資料.")
         return None
 
-    # This check and re-initialization logic is kept from original but might indicate upstream issue
     if len(target_stroke_paths) != len(target_stroke_histories):
         print(
             f"繪圖錯誤: 目標字元 '{target_char}' 的筆畫資料 ({len(target_stroke_paths)}) 或歷史記錄 ({len(target_stroke_histories)}) 不一致. 正在嘗試重設歷史記錄."
@@ -525,8 +530,7 @@ def plot_character_colored_by_history(
             'best_guess_char': None,
             'best_guess_stroke_index': None
         } for _ in range(len(target_stroke_paths))]
-        target_stroke_histories = char_history[
-            'stroke_histories']  # Update the local reference
+        target_stroke_histories = char_history['stroke_histories']
 
     fig, ax = plt.subplots(figsize=(1.5, 1.5), dpi=100)
     ax.axis('off')
@@ -558,7 +562,7 @@ def plot_character_colored_by_history(
         if historical_min_dist < threshold1:
             if historical_guess_char is not None and historical_guess_char in ALL_CHARACTERS_DATA:
                 historical_guess_stroke_paths = ALL_CHARACTERS_DATA.get(
-                    historical_guess_char, [])  # Use .get for safety
+                    historical_guess_char, [])
                 if historical_guess_stroke_paths and historical_guess_stroke_index is not None and 0 <= historical_guess_stroke_index < len(
                         historical_guess_stroke_paths):
                     plot_path_str = historical_guess_stroke_paths[
@@ -574,7 +578,7 @@ def plot_character_colored_by_history(
         elif historical_min_dist >= threshold1 and historical_min_dist < threshold2:
             if historical_guess_char is not None and historical_guess_char in ALL_CHARACTERS_DATA:
                 historical_guess_stroke_paths = ALL_CHARACTERS_DATA.get(
-                    historical_guess_char, [])  # Use .get for safety
+                    historical_guess_char, [])
                 if historical_guess_stroke_paths and historical_guess_stroke_index is not None and 0 <= historical_guess_stroke_index < len(
                         historical_guess_stroke_paths):
                     plot_path_str = historical_guess_stroke_paths[
@@ -590,7 +594,6 @@ def plot_character_colored_by_history(
         if plot_path_str is not None and color_to_use is not None:
             try:
                 translation = np.array([0.0, 0.0])
-                # Ensure centroids are numpy arrays before subtraction
                 if isinstance(target_centroid, np.ndarray) and isinstance(
                         historical_guess_centroid,
                         np.ndarray) and target_centroid.shape == (
@@ -598,12 +601,10 @@ def plot_character_colored_by_history(
                     translation = target_centroid - historical_guess_centroid
                 else:
                     translation = np.array([0.0, 0.0])
-                    # print(f"Warning: 無法計算位置 {position_index} 目標筆畫 {target_stroke_index+1} 或歷史猜測筆畫的質心.") # Suppressed frequent warning
 
                 outline_points = get_path_outline_points(plot_path_str,
                                                          num_curve_points=30)
 
-                # Check if it's a valid numpy array with expected dimensions before plotting
                 if isinstance(
                         outline_points, np.ndarray
                 ) and outline_points.ndim == 2 and outline_points.shape[0] > 0:
@@ -631,10 +632,6 @@ def plot_character_colored_by_history(
                 )
                 traceback.print_exc()
                 pass
-        # else: # Suppressed frequent warning
-        #      if not np.isinf(historical_min_dist) and historical_min_dist < threshold2:
-        #           print(f"Warning: 目標字 '{target_char}' 筆畫 {target_stroke_index+1} 歷史記錄 ('{historical_guess_char}' idx {historical_guess_stroke_index}) 無效，無法繪製形狀，即使距離 < threshold2 ({historical_min_dist}).")
-        #      pass
 
     buf = io.BytesIO()
     try:
@@ -681,7 +678,6 @@ def generate_stats_plot_buffer(
         ax.grid(axis='y', linestyle='--', alpha=0.7)
         for bar in bars:
             yval = bar.get_height()
-            # Fix: Convert int(yval) to string for text label
             plt.text(bar.get_x() + bar.get_width() / 2,
                      yval + 0.1,
                      str(int(yval)),
@@ -727,191 +723,179 @@ elif not VALID_POEM_LINES_MAP or all(
 else:
     print("應用程式啟動資料載入完成.")
 
-# Use dictionary to store game states for different channels
 games: typing.Dict[int, typing.Dict[str, typing.Any]] = {}
 
 
 def get_or_initialize_game_state(
     channel_id: int,
-    preferred_source: str = DEFAULT_POEMS_SOURCE
+    preferred_source: str = DEFAULT_POEMS_SOURCE,
+    force_new: bool = False
 ) -> typing.Tuple[typing.Optional[typing.Dict[str, typing.Any]],
                   typing.Optional[str], str]:
     global games, VALID_POEM_LINES_MAP, POEM_INFO_MAP_MAP, ALL_CHARACTERS_DATA
 
     state = games.get(channel_id)
+    current_source_in_state = state.get(
+        'current_poem_source',
+        DEFAULT_POEMS_SOURCE) if state else DEFAULT_POEMS_SOURCE
 
-    is_valid = False
-    if state:
-        try:
-            target_line: typing.Optional[str] = state.get('target_line')
-            char_histories: typing.Optional[typing.List[typing.Dict[
-                str, typing.Any]]] = state.get('char_histories')
-            guess_count: typing.Optional[int] = state.get('guess_count')
-            guess_count_history: typing.Optional[typing.List[int]] = state.get(
-                'guess_count_history')
-            recent_lines: typing.Any = state.get(
-                'recent_lines')  # Can be deque or list initially
+    if not force_new:
+        is_valid = False
+        if state:
+            try:
+                target_line: typing.Optional[str] = state.get('target_line')
+                char_histories: typing.Optional[typing.List[typing.Dict[
+                    str, typing.Any]]] = state.get('char_histories')
+                guess_count: typing.Optional[int] = state.get('guess_count')
+                guess_count_history: typing.Optional[
+                    typing.List[int]] = state.get('guess_count_history')
+                recent_lines: typing.Any = state.get('recent_lines')
+                thresholds: typing.Optional[typing.Dict[
+                    str, float]] = state.get('thresholds')
+                current_source: typing.Optional[str] = state.get(
+                    'current_poem_source')
+                target_poem_info: typing.Any = state.get('target_poem_info')
 
-            # Basic checks for state integrity and required keys
-            if isinstance(target_line, str) and len(target_line) == 5 and \
-               isinstance(char_histories, list) and len(char_histories) == 5 and \
-               isinstance(guess_count, int) and isinstance(guess_count_history, list) and \
-               isinstance(recent_lines, (deque, list)): # Accept list during potential loading
+                if isinstance(target_line, str) and len(target_line) == 5 and \
+                   isinstance(char_histories, list) and len(char_histories) == 5 and \
+                   isinstance(guess_count, int) and isinstance(guess_count_history, list) and \
+                   isinstance(recent_lines, (deque, list)) and isinstance(thresholds, dict) and \
+                   isinstance(current_source, str) and isinstance(target_poem_info, dict):
 
-                # Deeper check: ensure target chars match history and have data
-                chars_in_history_match = True
-                for i in range(5):
-                    char_history = char_histories[i]
-                    target_char = target_line[i]
-                    if not isinstance(char_history, dict) or char_history.get(
-                            'target_char') != target_char:
-                        chars_in_history_match = False
-                        break
-                    if target_char not in ALL_CHARACTERS_DATA:
-                        chars_in_history_match = False
-                        break
-                    target_char_stroke_count = len(
-                        ALL_CHARACTERS_DATA.get(target_char, []))
-                    stroke_hists = char_history.get('stroke_histories')
-                    if not isinstance(stroke_hists, list) or len(
-                            stroke_hists) != target_char_stroke_count:
-                        chars_in_history_match = False
-                        break
-                    # Check stroke history item structure
-                    if not all(
-                            isinstance(sh, dict) and 'min_dist' in sh
-                            and 'best_guess_char' in sh
-                            and 'best_guess_stroke_index' in sh
-                            for sh in stroke_hists):
-                        chars_in_history_match = False
-                        break
+                    chars_in_history_match = True
+                    for i in range(5):
+                        char_history = char_histories[i]
+                        target_char = target_line[i]
+                        if not isinstance(char_history,
+                                          dict) or char_history.get(
+                                              'target_char') != target_char:
+                            chars_in_history_match = False
+                            break
+                        if target_char not in ALL_CHARACTERS_DATA:
+                            chars_in_history_match = False
+                            break
+                        target_char_stroke_count = len(
+                            ALL_CHARACTERS_DATA.get(target_char, []))
+                        stroke_hists = char_history.get('stroke_histories')
+                        if not isinstance(stroke_hists, list) or len(
+                                stroke_hists) != target_char_stroke_count:
+                            chars_in_history_match = False
+                            break
+                        if not all(
+                                isinstance(sh, dict) and 'min_dist' in sh
+                                and 'best_guess_char' in sh
+                                and 'best_guess_stroke_index' in sh
+                                for sh in stroke_hists):
+                            chars_in_history_match = False
+                            break
 
-                if chars_in_history_match:
-                    is_valid = True
-                    # Ensure recent_lines is a deque for ongoing game
-                    if not isinstance(recent_lines, deque):
-                        state['recent_lines'] = deque(
-                            recent_lines, maxlen=RECENT_LINES_LIMIT)
-                    # Ensure thresholds exist
-                    if 'thresholds' not in state or not isinstance(
-                            state['thresholds'], dict):
-                        state['thresholds'] = {
-                            'thresh1': 10000,
-                            'thresh2': 25000
-                        }
+                    if chars_in_history_match:
+                        is_valid = True
+                        if not isinstance(recent_lines, deque):
+                            state['recent_lines'] = deque(
+                                recent_lines, maxlen=RECENT_LINES_LIMIT)
 
-        except Exception as e:
-            print(f"Channel {channel_id} 的遊戲狀態驗證失敗: {e}")
-            is_valid = False
+            except Exception as e:
+                print(f"Channel {channel_id} 的遊戲狀態驗證失敗: {e}")
+                traceback.print_exc()
+                is_valid = False
 
-    if not is_valid:
-        print(f"為頻道 {channel_id} 初始化或重置遊戲狀態.")
-        current_source = preferred_source
-        valid_lines = VALID_POEM_LINES_MAP.get(current_source)
-        poem_info_map = POEM_INFO_MAP_MAP.get(current_source)
-
-        if not valid_lines or poem_info_map is None:  # Added check for poem_info_map being None
+        if is_valid:
             print(
-                f"當前選擇的題庫 ('{POEMS_SOURCES.get(current_source, current_source)}') 沒有可用的詩句或資訊地圖載入失敗，嘗試回退到預設題庫."
+                f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'"
             )
-            if current_source != DEFAULT_POEMS_SOURCE:
-                current_source = DEFAULT_POEMS_SOURCE
-                valid_lines = VALID_POEM_LINES_MAP.get(current_source)
-                poem_info_map = POEM_INFO_MAP_MAP.get(current_source)
-                if not valid_lines or poem_info_map is None:
-                    print(
-                        f"預設題庫 ('{POEMS_SOURCES.get(DEFAULT_POEMS_SOURCE, DEFAULT_POEMS_SOURCE)}') 也沒有可用的詩句或資訊地圖載入失敗. 無法初始化遊戲."
-                    )
-                    return None, f"無法初始化遊戲：沒有可用的詩句來源或資料不完整。", current_source
-            else:
+            return state, None, state.get('current_poem_source',
+                                          DEFAULT_POEMS_SOURCE)
+
+    print(f"為頻道 {channel_id} 初始化或重置遊戲狀態 (force_new={force_new}).")
+    current_source = preferred_source
+    valid_lines = VALID_POEM_LINES_MAP.get(current_source)
+    poem_info_map = POEM_INFO_MAP_MAP.get(current_source)
+
+    if not valid_lines or poem_info_map is None:
+        print(
+            f"當前選擇的題庫 ('{POEMS_SOURCES.get(current_source, current_source)}') 沒有可用的詩句或資訊地圖載入失敗，嘗試回退到預設題庫."
+        )
+        if current_source != DEFAULT_POEMS_SOURCE:
+            current_source = DEFAULT_POEMS_SOURCE
+            valid_lines = VALID_POEM_LINES_MAP.get(current_source)
+            poem_info_map = POEM_INFO_MAP_MAP.get(current_source)
+            if not valid_lines or poem_info_map is None:
                 print(
-                    f"預設題庫 ('{POEMS_SOURCES.get(DEFAULT_POEMS_SOURCE, DEFAULT_POEMS_SOURCE)}') 沒有可用的詩句或資訊地圖載入失敗. 無法初始化遊戲."
+                    f"預設題庫 ('{POEMS_SOURCES.get(DEFAULT_POEMS_SOURCE, DEFAULT_POEMS_SOURCE)}') 也沒有可用的詩句或資訊地圖載入失敗. 無法初始化遊戲."
                 )
                 return None, f"無法初始化遊戲：沒有可用的詩句來源或資料不完整。", current_source
-
-        # Preserve history if exists from a previous invalid state
-        guess_count_history = state.get('guess_count_history',
-                                        []) if state else []
-        recent_lines_list = state.get(
-            'recent_lines', deque(
-                maxlen=RECENT_LINES_LIMIT)) if state else deque(
-                    maxlen=RECENT_LINES_LIMIT)
-        if not isinstance(recent_lines_list, deque):
-            recent_lines_list = deque(recent_lines_list,
-                                      maxlen=RECENT_LINES_LIMIT)
-        recent_lines = recent_lines_list
-
-        available_lines = [
-            line for line in valid_lines if line not in recent_lines
-        ]
-
-        if not available_lines:
-            print(f"頻道 {channel_id}: 沒有新的詩句可用 (所有詩句都在最近列表中)，重用最近的詩句.")
-            if not valid_lines:  # Should not happen based on checks above, but safety
-                return None, f"無法初始化遊戲：沒有可用的詩句來源。", current_source
-            target_line = random.choice(valid_lines)
         else:
-            target_line = random.choice(available_lines)
+            print(
+                f"預設題庫 ('{POEMS_SOURCES.get(DEFAULT_POEMS_SOURCE, DEFAULT_POEMS_SOURCE)}') 沒有可用的詩句或資訊地圖載入失敗. 無法初始化遊戲."
+            )
+            return None, f"無法初始化遊戲：沒有可用的詩句來源或資料不完整。", current_source
 
-        # Fix: poem_info_map is checked for None above, safe to use .get here
-        target_poem_info = poem_info_map.get(target_line, {
-            'title': '未知詩名',
-            'content': [target_line]
+    guess_count_history = games.get(channel_id,
+                                    {}).get('guess_count_history', [])
+    recent_lines_list = games.get(channel_id,
+                                  {}).get('recent_lines',
+                                          deque(maxlen=RECENT_LINES_LIMIT))
+    if not isinstance(recent_lines_list, deque):
+        recent_lines_list = deque(recent_lines_list, maxlen=RECENT_LINES_LIMIT)
+    recent_lines = recent_lines_list
+
+    available_lines = [
+        line for line in valid_lines if line not in recent_lines
+    ]
+
+    if not available_lines:
+        print(f"頻道 {channel_id}: 沒有新的詩句可用 (所有詩句都在最近列表中)，重用最近的詩句.")
+        if not valid_lines:
+            return None, f"無法初始化遊戲：沒有可用的詩句來源。", current_source
+        target_line = random.choice(valid_lines)
+    else:
+        target_line = random.choice(available_lines)
+
+    target_poem_info = poem_info_map.get(target_line, {
+        'title': '未知詩名',
+        'content': [target_line]
+    })
+
+    recent_lines.append(target_line)
+
+    char_histories = []
+    for char in target_line:
+        stroke_paths = ALL_CHARACTERS_DATA.get(char, [])
+        stroke_histories = []
+        for _ in stroke_paths:
+            stroke_histories.append({
+                'min_dist': float('inf'),
+                'best_guess_char': None,
+                'best_guess_stroke_index': None
+            })
+        char_histories.append({
+            'target_char': char,
+            'stroke_histories': stroke_histories
         })
 
-        recent_lines.append(target_line)
-
-        char_histories = []
-        for char in target_line:
-            stroke_paths = ALL_CHARACTERS_DATA.get(char, [])
-            stroke_histories = []
-            for _ in stroke_paths:
-                stroke_histories.append({
-                    'min_dist': float('inf'),
-                    'best_guess_char': None,
-                    'best_guess_stroke_index': None
-                })
-            char_histories.append({
-                'target_char': char,
-                'stroke_histories': stroke_histories
-            })
-
-        state = {
-            'target_line': target_line,
-            'target_poem_info': target_poem_info,
-            'char_histories': char_histories,
-            'recent_lines': recent_lines,  # This is already a deque
-            'guess_count': 0,
-            'guess_count_history': guess_count_history,  # Preserve history
-            'current_poem_source': current_source,
-            'thresholds': {
-                'thresh1': 10000,
-                'thresh2': 25000
-            }
+    state = {
+        'target_line': target_line,
+        'target_poem_info': target_poem_info,
+        'char_histories': char_histories,
+        'recent_lines': recent_lines,
+        'guess_count': 0,
+        'guess_count_history': guess_count_history,
+        'current_poem_source': current_source,
+        'thresholds': {
+            'thresh1': 10000,
+            'thresh2': 25000
         }
-        games[channel_id] = state
-        # Fix: Use .get() for safe access in print statement
-        print(
-            f"頻道 {channel_id} 遊戲已初始化，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'"
-        )
-        return state, None, current_source
-
-    # Fix: Use .get() for safe access in print statement
-    if state is not None:
-        print(
-            f"頻道 {channel_id} 找到有效遊戲狀態，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'"
-        )
-        return state, None, state.get('current_poem_source', DEFAULT_POEMS_SOURCE)
-    else:
-        # This should not happen since we initialize state above if it's invalid
-        print(f"頻道 {channel_id} 狀態異常：應該已經初始化但仍為 None")
-        return None, "遊戲狀態初始化失敗", DEFAULT_POEMS_SOURCE
+    }
+    games[channel_id] = state
+    print(
+        f"頻道 {channel_id} 遊戲已初始化，目標詩句: '{state.get('target_line', '未知')}' 使用題庫: '{POEMS_SOURCES.get(state.get('current_poem_source', '未知'))}'"
+    )
+    return state, None, current_source
 
 
-intents = discord.Intents.default()
-intents.message_content = True
-
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.default())
+tree = app_commands.CommandTree(bot)
 
 
 @bot.event
@@ -920,7 +904,6 @@ async def on_ready():
         print(f"嚴重錯誤: 遊戲資料載入失敗 - {GAME_LOAD_ERROR}")
         print("機器人將無法正常運作.")
     else:
-        # Fix: Check if bot.user is not None before accessing .name
         if bot.user is not None:
             print(f'{bot.user.name} has connected to Discord!')
         else:
@@ -932,47 +915,60 @@ async def on_ready():
             print("詩詞檔案載入時發生以下錯誤:")
             for source, err in GLOBAL_POEMS_LOAD_ERRORS.items():
                 print(f"- {source}: {err}")
-        print("機器人已準備就緒.")
+        print("機器人已準備就緒，正在同步斜線指令...")
+        try:
+            await tree.sync()
+            print("斜線指令同步完成.")
+        except Exception as e:
+            print(f"同步斜線指令失敗: {e}")
+            traceback.print_exc()
 
 
-@bot.command(name='poem', help='開始一個新的猜詩遊戲 或 顯示當前詩句 (含提示圖片)')
-async def start_game(ctx: commands.Context):
+@tree.command(name='poem', description='顯示當前詩句提示圖片，如果沒有遊戲則開始新遊戲')
+async def poem(interaction: discord.Interaction):
     if GAME_LOAD_ERROR:
-        await ctx.send(f"遊戲資料載入失敗，無法開始遊戲: {GAME_LOAD_ERROR}")
+        await interaction.response.send_message(
+            f"遊戲資料載入失敗，無法開始或顯示遊戲: {GAME_LOAD_ERROR}", ephemeral=True)
         return
+
+    await interaction.response.defer()
 
     game_state, init_error, current_source = get_or_initialize_game_state(
-        ctx.channel.id)
+        interaction.channel_id)
 
-    if init_error or game_state is None:  # Check if game_state is None after initialization
-        await ctx.send(init_error or "無法初始化遊戲狀態.")
+    if init_error or game_state is None:
+        await interaction.followup.send(init_error or "無法獲取或初始化遊戲狀態.")
         return
 
-    target_line = game_state[
-        'target_line']  # Now safe because game_state is not None
-    char_histories = game_state['char_histories']  # Now safe
+    target_line = game_state['target_line']
+    char_histories = game_state['char_histories']
     thresholds = game_state.get('thresholds', {
         'thresh1': 10000,
         'thresh2': 25000
-    })  # Safe with .get
-    guess_count = game_state.get('guess_count', 0)  # Safe with .get
+    })
+    guess_count = game_state.get('guess_count', 0)
 
     files: typing.List[discord.File] = []
-    messages: typing.List[str] = [
-        f"新的猜詩遊戲開始了！ (題庫: {POEMS_SOURCES.get(current_source, current_source)})"
-    ]
-    messages.append(f"這是一句五言詩。請使用 `!guess [你的猜測]` 來猜測。")
-    messages.append(f"你已經猜了 {guess_count} 次。")
+    messages: typing.List[str] = []
+
+    if guess_count == 0:
+        messages.append(
+            f"新的猜詩遊戲開始了！ (題庫: {POEMS_SOURCES.get(current_source, current_source)})"
+        )
+        messages.append(f"這是一句五言詩。請使用 `/guess [你的猜測]` 來猜測。")
+    else:
+        messages.append(f"這是目前的遊戲狀態。")
+        messages.append(f"你已經猜了 {guess_count} 次。")
+
     messages.append("提示圖片如下：")
 
     for i in range(5):
-        # Ensure target_char is valid before proceeding
         target_char = target_line[i]
         if target_char not in ALL_CHARACTERS_DATA:
             messages.append(
-                f"內部錯誤: 目標字 '{target_char}' ({i+1}) 筆畫資料遺失. 請使用 `!newpoem` 重新開始."
+                f"內部錯誤: 目標字 '{target_char}' ({i+1}) 筆畫資料遺失. 請使用 `/newpoem` 重新開始."
             )
-            continue  # Skip plotting for this char
+            continue
 
         char_history = char_histories[i]
         try:
@@ -986,73 +982,64 @@ async def start_game(ctx: commands.Context):
                 messages.append(f"位置 {i+1} 字 '{target_char}' 的圖片生成失敗。")
         except Exception as e:
             print(
-                f"Error plotting initial image for char {target_char} at pos {i}: {e}"
-            )
+                f"Error plotting image for char {target_char} at pos {i}: {e}")
             traceback.print_exc()
             messages.append(f"位置 {i+1} 字 '{target_char}' 的圖片生成時發生錯誤。")
 
-    await ctx.send('\n'.join(messages), files=files)
+    await interaction.followup.send('\n'.join(messages), files=files)
 
 
-@bot.command(name='guess', help='猜測當前詩句。請輸入五個漢字。例如: !guess 花落知多少')
-async def guess_poem(ctx: commands.Context,
-                     *,
-                     guess_line: typing.Optional[str] = None
-                     ):  # Fix: Allow guess_line to be None
+@tree.command(name='guess', description='猜測當前詩句。請輸入五個漢字。例如: /guess 花落知多少')
+@app_commands.describe(guess_line="你的五字猜測")
+async def guess(interaction: discord.Interaction, guess_line: str):
     if GAME_LOAD_ERROR:
-        await ctx.send(f"遊戲資料載入失敗，無法進行猜測: {GAME_LOAD_ERROR}")
+        await interaction.response.send_message(
+            f"遊戲資料載入失敗，無法進行猜測: {GAME_LOAD_ERROR}", ephemeral=True)
         return
 
-    if guess_line is None or len(guess_line.strip()) == 0:
-        await ctx.send("請在 `!guess` 後面輸入你的五字猜測。例如: `!guess 花落知多少`")
-        return
+    await interaction.response.defer()
 
     guess_line = guess_line.strip()
 
     if len(guess_line) != 5:
-        await ctx.send(f"請輸入剛好五個漢字進行猜測 (你輸入了 {len(guess_line)} 個字).")
+        await interaction.followup.send(
+            f"請輸入剛好五個漢字進行猜測 (你輸入了 {len(guess_line)} 個字).")
         return
 
     missing_chars = [
         char for char in guess_line if char not in ALL_CHARACTERS_DATA
     ]
     if missing_chars:
-        await ctx.send(f"你的猜測詩句中包含不合法的字元: {''.join(missing_chars)}. 請輸入常見漢字.")
+        await interaction.followup.send(
+            f"你的猜測詩句中包含不合法的字元: {''.join(missing_chars)}. 請輸入常見漢字.")
         return
 
-    game_state, init_error, current_source = get_or_initialize_game_state(
-        ctx.channel.id)
+    game_state = games.get(interaction.channel_id)
 
-    # Fix: Check if game_state is None after initialization call
-    if init_error or game_state is None:
-        await ctx.send(
-            f"遊戲狀態錯誤，請使用 `!poem` 開始新遊戲。\n錯誤訊息: {init_error or '狀態無效'}")
-        # Ensure the invalid state is cleared
-        if ctx.channel.id in games:
-            del games[ctx.channel.id]
+    if game_state is None or any(
+            k not in game_state
+            for k in ['target_line', 'char_histories', 'thresholds']):
+        await interaction.followup.send("此頻道目前沒有正在進行的遊戲。請先使用 `/poem` 開始新遊戲。")
         return
 
-    target_line: str = game_state[
-        'target_line']  # Now safe because game_state is not None
-    char_histories: typing.List[typing.Dict[str, typing.Any]] = game_state[
-        'char_histories']  # Now safe
+    target_line: str = game_state['target_line']
+    char_histories: typing.List[typing.Dict[
+        str, typing.Any]] = game_state['char_histories']
     thresholds: typing.Dict[str,
                             float] = game_state.get('thresholds', {
                                 'thresh1': 10000,
                                 'thresh2': 25000
-                            })  # Safe with .get
+                            })
 
     if any(char not in ALL_CHARACTERS_DATA for char in target_line):
-        await ctx.send(
-            f"內部錯誤: 當前目標詩句 '{target_line}' 包含無效字元或不在當前題庫中. 請使用 `!newpoem` 重新開始遊戲."
+        await interaction.followup.send(
+            f"內部錯誤: 當前目標詩句 '{target_line}' 包含無效字元或不在當前題庫中. 請使用 `/newpoem` 重新開始遊戲."
         )
-        # Ensure the invalid state is cleared
-        if ctx.channel.id in games:
-            del games[ctx.channel.id]
+        if interaction.channel_id in games:
+            del games[interaction.channel_id]
         return
 
-    game_state['guess_count'] = game_state.get('guess_count',
-                                               0) + 1  # Safe with .get
+    game_state['guess_count'] = game_state.get('guess_count', 0) + 1
     current_guess_count = game_state['guess_count']
 
     messages: typing.List[str] = []
@@ -1061,11 +1048,8 @@ async def guess_poem(ctx: commands.Context,
 
     num_curve_points_for_dtw = 7
 
-    # Ensure char_histories is correctly structured and sized for the current target_line
-    # This check is primarily for state recovery/validation, init should set it correctly
     if len(char_histories) != 5:
         messages.append(f"警告: 遊戲狀態字元歷史記錄長度異常 ({len(char_histories)}). 重置歷史記錄.")
-        # Re-initialize based on the target line chars
         char_histories = []
         for char in target_line:
             stroke_paths = ALL_CHARACTERS_DATA.get(char, [])
@@ -1078,19 +1062,17 @@ async def guess_poem(ctx: commands.Context,
                 'target_char': char,
                 'stroke_histories': stroke_histories
             })
-        game_state['char_histories'] = char_histories  # Update state
+        game_state['char_histories'] = char_histories
 
     for i in range(5):
         target_char = target_line[i]
         guess_char = guess_line[i]
 
-        # Ensure char_history exists and is correctly structured for this position
         if i >= len(char_histories) or not isinstance(
                 char_histories[i],
                 dict) or char_histories[i].get('target_char') != target_char:
             messages.append(f"內部錯誤: 位置 {i+1} 的字元歷史記錄結構無效或與目標字元不匹配. 無法處理.")
             partial_failure = True
-            # Attempt to re-initialize just this char's history structure if possible
             if target_char in ALL_CHARACTERS_DATA:
                 stroke_paths = ALL_CHARACTERS_DATA[target_char]
                 char_histories[i] = {
@@ -1107,18 +1089,17 @@ async def guess_poem(ctx: commands.Context,
                 print(
                     f"Error: Cannot re-initialize history for {target_char} at pos {i}, data missing."
                 )
-                continue  # Cannot proceed for this character
+                continue
 
         char_history = char_histories[i]
 
         if target_char not in ALL_CHARACTERS_DATA:
             messages.append(f"錯誤: 目標字 '{target_char}' ({i+1}) 筆畫資料遺失.")
             partial_failure = True
-            continue  # Cannot compare or plot
+            continue
 
         target_char_stroke_count = len(ALL_CHARACTERS_DATA.get(
             target_char, []))
-        # Ensure stroke_histories is correctly sized
         if len(char_history.get('stroke_histories',
                                 [])) != target_char_stroke_count:
             messages.append(
@@ -1149,7 +1130,7 @@ async def guess_poem(ctx: commands.Context,
                 traceback.print_exc()
                 messages.append(f"位置 {i+1} 字 '{target_char}': 黑色圖片生成時發生意外錯誤.")
                 partial_failure = True
-            continue  # Move to the next character
+            continue
 
         print(f"位置 {i+1}: 字元 '{target_char}' vs 猜測 '{guess_char}', 進行筆畫比較.")
 
@@ -1176,7 +1157,6 @@ async def guess_poem(ctx: commands.Context,
                         guess_stroke_sequences_with_original_index):
                     for seq_t_idx, (seq_t, original_t_idx) in enumerate(
                             target_stroke_sequences_with_original_index):
-                        # Ensure sequences are valid numpy arrays before DTW
                         if not isinstance(seq_g, np.ndarray) or seq_g.shape[0] < 2 or \
                            not isinstance(seq_t, np.ndarray) or seq_t.shape[0] < 2:
                             print(
@@ -1226,7 +1206,6 @@ async def guess_poem(ctx: commands.Context,
                                 best_matching_guess_original_index_for_this_target_stroke = guess_stroke_sequences_with_original_index[
                                     min_row_comp_index][1]
 
-                    # Ensure index is within bounds before accessing char_history['stroke_histories']
                     if target_original_index < len(
                             char_history['stroke_histories']):
                         hist_stroke_info = char_history['stroke_histories'][
@@ -1276,26 +1255,26 @@ async def guess_poem(ctx: commands.Context,
 
     if is_correct_guess:
         response_message += "恭喜你，猜對了整句詩!\n"
-        poem_info = game_state.get('target_poem_info')  # Safe with .get
-        if poem_info and isinstance(poem_info,
-                                    dict):  # Add check for poem_info type
-            response_message += f"這是出自 **《{poem_info.get('title', '未知詩名')}》**：\n"  # Safe with .get
-            content = poem_info.get('content', [])  # Safe with .get
-            if isinstance(content, list):  # Add check for content type
+        poem_info = game_state.get('target_poem_info')
+        if poem_info and isinstance(poem_info, dict):
+            response_message += f"這是出自 **《{poem_info.get('title', '未知詩名')}》**：\n"
+            content = poem_info.get('content', [])
+            if isinstance(content, list):
                 response_message += '\n'.join(content) + '\n'
             else:
                 response_message += '詩詞內容無效.\n'
 
         game_state['guess_count_history'] = game_state.get(
-            'guess_count_history', [])  # Ensure list exists
-        game_state['guess_count'] = 0
-        response_message += "使用 `!poem` 開始新一輪遊戲，或使用 `!newpoem` 切換詩句並開始新遊戲，或使用 `!stats` 查看統計。\n"
+            'guess_count_history', [])
+        game_state['guess_count_history'].append(current_guess_count)
+        del games[interaction.channel_id]
 
-        # Plot correct characters in black after successful guess
-        files = []  # Clear previous colored files
+        response_message += "使用 `/poem` 開始新一輪遊戲，或使用 `/newpoem` 切換詩句並開始新遊戲，或使用 `/stats` 查看統計。\n"
+
+        files = []
         for i in range(5):
             target_char = target_line[i]
-            if target_char not in ALL_CHARACTERS_DATA:  # Safety check
+            if target_char not in ALL_CHARACTERS_DATA:
                 messages.append(
                     f"內部錯誤: 字元 '{target_char}' ({i+1}) 筆畫資料遺失，無法繪製最終圖片.")
                 continue
@@ -1317,31 +1296,29 @@ async def guess_poem(ctx: commands.Context,
                 messages.append(f"位置 {i+1} 字 '{target_char}': 黑色圖片生成時發生意外錯誤.")
                 partial_failure = True
 
-    elif current_guess_count >= 15:  # Example limit
+    elif current_guess_count >= 15:
         response_message += f"猜測次數過多 ({current_guess_count} 次), 本輪遊戲結束。\n"
         response_message += f"正確詩句是: **{target_line}**\n"
-        poem_info = game_state.get('target_poem_info')  # Safe with .get
-        if poem_info and isinstance(poem_info,
-                                    dict):  # Add check for poem_info type
-            response_message += f"這是出自 **《{poem_info.get('title', '未知詩名')}》**：\n"  # Safe with .get
-            content = poem_info.get('content', [])  # Safe with .get
-            if isinstance(content, list):  # Add check for content type
+        poem_info = game_state.get('target_poem_info')
+        if poem_info and isinstance(poem_info, dict):
+            response_message += f"這是出自 **《{poem_info.get('title', '未知詩名')}》**：\n"
+            content = poem_info.get('content', [])
+            if isinstance(content, list):
                 response_message += '\n'.join(content) + '\n'
             else:
                 response_message += '詩詞內容無效.\n'
 
         game_state['guess_count_history'] = game_state.get(
-            'guess_count_history', [])  # Ensure list exists
-        game_state['guess_count_history'].append(
-            current_guess_count)  # Record attempt even if failed by limit
-        game_state['guess_count'] = 0
-        response_message += "使用 `!poem` 開始新一輪遊戲，或使用 `!newpoem` 切換詩句並開始新遊戲，或使用 `!stats` 查看統計。\n"
+            'guess_count_history', [])
+        game_state['guess_count_history'].append(current_guess_count)
+        del games[interaction.channel_id]
 
-        # Plot correct characters in black after game over
-        files = []  # Clear previous colored files
+        response_message += "使用 `/poem` 開始新一輪遊戲，或使用 `/newpoem` 切換詩句並開始新遊戲，或使用 `/stats` 查看統計。\n"
+
+        files = []
         for i in range(5):
             target_char = target_line[i]
-            if target_char not in ALL_CHARACTERS_DATA:  # Safety check
+            if target_char not in ALL_CHARACTERS_DATA:
                 messages.append(
                     f"內部錯誤: 字元 '{target_char}' ({i+1}) 筆畫資料遺失，無法繪製最終圖片.")
                 continue
@@ -1365,89 +1342,81 @@ async def guess_poem(ctx: commands.Context,
 
     else:
         response_message += f"繼續努力! 這是你第 {current_guess_count} 次猜測。\n"
-        # Safe access for thresholds
         response_message += f"(閾值: 黑 < {thresholds.get('thresh1', 10000)}, 灰 < {thresholds.get('thresh2', 25000)})\n"
         response_message += "提示圖片已更新："
 
-    games[ctx.channel.id] = game_state  # Save state
-
     if messages:
-        await ctx.send('\n'.join(messages))
+        await interaction.followup.send('\n'.join(messages))
 
     if files:
-        # Edit the response_message to be sent along with files if there were messages already
-        if messages:
-            await ctx.send(response_message)
-        else:
-            await ctx.send(response_message, files=files)
+        await interaction.followup.send(response_message, files=files)
     elif not messages:
-        # If no files and no error messages, just send the main response message
-        await ctx.send(response_message + " (沒有圖片需要發送)")
+        await interaction.followup.send(response_message + " (沒有圖片需要發送)")
 
 
-@bot.command(name='newpoem',
-             help=f'開始一個新的詩詞遊戲。可以指定題庫: {", ".join(POEMS_SOURCES.keys())}')
-async def new_poem(ctx: commands.Context, source: str = DEFAULT_POEMS_SOURCE):
+@tree.command(
+    name='newpoem',
+    description=f'開始一個新的詩詞遊戲。可以指定題庫: {", ".join(POEMS_SOURCES.keys())}')
+@app_commands.describe(source=f'選擇題庫來源: {", ".join(POEMS_SOURCES.keys())}')
+async def newpoem(interaction: discord.Interaction,
+                  source: str = DEFAULT_POEMS_SOURCE):
     if GAME_LOAD_ERROR:
-        await ctx.send(f"遊戲資料載入失敗，無法開始新遊戲: {GAME_LOAD_ERROR}")
+        await interaction.response.send_message(
+            f"遊戲資料載入失敗，無法開始新遊戲: {GAME_LOAD_ERROR}", ephemeral=True)
         return
+
+    await interaction.response.defer()
 
     if source not in POEMS_SOURCES:
         available_sources = ", ".join(
             [f"{k} ({v})" for k, v in POEMS_SOURCES.items()])
-        await ctx.send(
+        await interaction.followup.send(
             f"無效的題庫來源 '{source}'. 可用的題庫: {available_sources}. 使用預設題庫 `{DEFAULT_POEMS_SOURCE}`."
         )
         source = DEFAULT_POEMS_SOURCE
 
-    print(f"頻道 {ctx.channel.id}: 收到開始新遊戲指令，來源: {source}")
+    print(f"頻道 {interaction.channel_id}: 收到開始新遊戲指令，來源: {source}")
 
-    # Clear previous game state for this channel before initializing, preserve history
-    old_history: typing.List[int] = games.get(ctx.channel.id,
+    old_history: typing.List[int] = games.get(interaction.channel_id,
                                               {}).get('guess_count_history',
                                                       [])
-    games[ctx.channel.id] = {
-        'guess_count_history': old_history
-    }  # Keep history
+    games[interaction.channel_id] = {'guess_count_history': old_history}
 
     game_state, init_error, current_source_used = get_or_initialize_game_state(
-        ctx.channel.id, preferred_source=source)
+        interaction.channel_id, preferred_source=source, force_new=True)
 
-    if init_error or game_state is None:  # Check if game_state is None
-        await ctx.send(f"無法初始化新遊戲: {init_error or '狀態無效'}")
-        # Clean up potential partial state if initialization failed
-        if ctx.channel.id in games:
-            del games[ctx.channel.id]
+    if init_error or game_state is None:
+        await interaction.followup.send(f"無法初始化新遊戲: {init_error or '狀態無效'}")
+        if interaction.channel_id in games:
+            del games[interaction.channel_id]
         return
 
-    target_line = game_state['target_line']  # Now safe
-    char_histories = game_state['char_histories']  # Now safe
+    target_line = game_state['target_line']
+    char_histories = game_state['char_histories']
     thresholds = game_state.get('thresholds', {
         'thresh1': 10000,
         'thresh2': 25000
-    })  # Safe with .get
+    })
 
     files: typing.List[discord.File] = []
     messages: typing.List[str] = [
         f"新的猜詩遊戲開始了！ (題庫: {POEMS_SOURCES.get(current_source_used, current_source_used)})"
     ]
-    messages.append(f"這是一句五言詩。請使用 `!guess [你的猜測]` 來猜測。")
+    messages.append(f"這是一句五言詩。請使用 `/guess [你的猜測]` 來猜測。")
     messages.append("提示圖片如下：")
 
     for i in range(5):
         target_char = target_line[i]
-        if target_char not in ALL_CHARACTERS_DATA:  # Safety check
+        if target_char not in ALL_CHARACTERS_DATA:
             messages.append(
-                f"內部錯誤: 目標字 '{target_char}' ({i+1}) 筆畫資料遺失. 請使用 `!newpoem` 重新開始."
+                f"內部錯誤: 目標字 '{target_char}' ({i+1}) 筆畫資料遺失. 請使用 `/newpoem` 重新開始."
             )
-            continue  # Skip plotting
+            continue
 
-        # Ensure char_history exists and is correctly structured for this position
         if i >= len(char_histories) or not isinstance(
                 char_histories[i],
                 dict) or char_histories[i].get('target_char') != target_char:
             messages.append(f"內部錯誤: 位置 {i+1} 的字元歷史記錄結構無效或與目標字元不匹配. 無法繪製圖片.")
-            # This shouldn't happen after a fresh initialize_game_state, but defensive
             continue
         char_history = char_histories[i]
 
@@ -1467,82 +1436,118 @@ async def new_poem(ctx: commands.Context, source: str = DEFAULT_POEMS_SOURCE):
             traceback.print_exc()
             messages.append(f"位置 {i+1} 字 '{target_char}' 的圖片生成時發生錯誤。")
 
-    await ctx.send('\n'.join(messages), files=files)
+    await interaction.followup.send('\n'.join(messages), files=files)
 
 
-@bot.command(name='stats', help='顯示你的猜測次數統計圖')
-async def show_stats(ctx: commands.Context):
+@tree.command(name='stats', description='顯示你的猜測次數統計圖')
+async def stats(interaction: discord.Interaction):
     if GAME_LOAD_ERROR:
-        await ctx.send(f"遊戲資料載入失敗，無法顯示統計: {GAME_LOAD_ERROR}")
+        await interaction.response.send_message(
+            f"遊戲資料載入失敗，無法顯示統計: {GAME_LOAD_ERROR}", ephemeral=True)
         return
 
-    game_state = games.get(
-        ctx.channel.id)  # Use .get to handle channel with no state
+    await interaction.response.defer()
 
-    # Only need history, allow displaying stats even if current game state is invalid
+    game_state = games.get(interaction.channel_id)
+
     guess_count_history = game_state.get('guess_count_history',
                                          []) if game_state else []
 
     if not guess_count_history:
-        await ctx.send("目前沒有完成的詩詞統計資料。完成一首詩後再試試！")
+        await interaction.followup.send("目前沒有完成的詩詞統計資料。完成一首詩後再試試！")
         return
 
     try:
         image_bytes = generate_stats_plot_buffer(guess_count_history)
         if image_bytes:
-            await ctx.send("你的猜測次數統計圖：",
-                           file=discord.File(io.BytesIO(image_bytes),
-                                             filename='stats.png'))
+            await interaction.followup.send("你的猜測次數統計圖：",
+                                            file=discord.File(
+                                                io.BytesIO(image_bytes),
+                                                filename='stats.png'))
         else:
-            await ctx.send("無法生成統計圖表。")
+            await interaction.followup.send("無法生成統計圖表。")
     except Exception as e:
         print(f"生成並發送統計圖表時發生錯誤: {e}")
         traceback.print_exc()
-        await ctx.send("生成統計圖表時發生錯誤。")
+        await interaction.followup.send("生成統計圖表時發生錯誤。")
 
 
-# Optional: Command to set thresholds
-@bot.command(name='set_thresholds',
-             help='設定相似度閾值 (!set_thresholds <黑閾值> <灰閾值>)')
-@commands.has_permissions(manage_channels=True)  # Example permission check
-async def set_thresholds(ctx: commands.Context, thresh1: float,
-                         thresh2: float):
+@tree.command(name='difficulty', description='設定遊戲難度 (1-6)')
+@app_commands.describe(level=f'難度等級 (1-6)')
+async def difficulty(interaction: discord.Interaction, level: int):
     if GAME_LOAD_ERROR:
-        await ctx.send(f"遊戲資料載入失敗，無法設定閾值: {GAME_LOAD_ERROR}")
+        await interaction.response.send_message(
+            f"遊戲資料載入失敗，無法設定難度: {GAME_LOAD_ERROR}", ephemeral=True)
         return
+
+    await interaction.response.defer(ephemeral=True)
+
+    if level not in DIFFICULTY_THRESHOLDS:
+        await interaction.followup.send(f"無效的難度等級。請輸入 1 到 6 之間的數字。")
+        return
+
+    game_state = games.get(interaction.channel_id)
+
+    if game_state is None or any(
+            k not in game_state
+            for k in ['target_line', 'char_histories', 'thresholds']):
+        await interaction.followup.send("此頻道目前沒有正在進行的遊戲。請先使用 `/poem` 開始新遊戲。")
+        return
+
+    thresh1, thresh2 = DIFFICULTY_THRESHOLDS[level]
+    game_state['thresholds'] = {'thresh1': thresh1, 'thresh2': thresh2}
+    games[interaction.channel_id] = game_state
+
+    await interaction.followup.send(
+        f"已將遊戲難度設定為等級 {level} (閾值: 黑 < {thresh1}, 灰 < {thresh2}).")
+
+
+@tree.command(name='set_thresholds', description='手動設定相似度閾值')
+@app_commands.describe(thresh1='黑色的閾值 (距離小於此值為黑色)',
+                       thresh2='灰色的閾值 (距離小於此值且大於等於黑色閾值為灰色)')
+@app_commands.checks.has_permissions(manage_channels=True)
+async def set_thresholds_cmd(interaction: discord.Interaction, thresh1: float,
+                             thresh2: float):
+    if GAME_LOAD_ERROR:
+        await interaction.response.send_message(
+            f"遊戲資料載入失敗，無法設定閾值: {GAME_LOAD_ERROR}", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
 
     if thresh1 < 0 or thresh2 < 0 or thresh1 > thresh2:
-        await ctx.send("無效的閾值輸入。請確保 0 ≤ 黑閾值 ≤ 灰閾值。")
+        await interaction.followup.send("無效的閾值輸入。請確保 0 ≤ 黑閾值 ≤ 灰閾值。")
         return
 
-    game_state = games.get(ctx.channel.id)
+    game_state = games.get(interaction.channel_id)
 
-    if game_state is None:  # Check if game_state exists for this channel
-        await ctx.send(f"此頻道目前沒有正在進行的遊戲狀態。請先使用 `!poem` 開始新遊戲。")
+    if game_state is None or any(
+            k not in game_state
+            for k in ['target_line', 'char_histories', 'thresholds']):
+        await interaction.followup.send("此頻道目前沒有正在進行的遊戲狀態。請先使用 `/poem` 開始新遊戲。")
         return
 
     game_state['thresholds'] = {'thresh1': thresh1, 'thresh2': thresh2}
-    games[ctx.channel.id] = game_state  # Update state
+    games[interaction.channel_id] = game_state
 
-    await ctx.send(f"已將閾值設定為：黑 < {thresh1}, 灰 < {thresh2}")
+    await interaction.followup.send(f"已將閾值設定為：黑 < {thresh1}, 灰 < {thresh2}")
 
 
-# Error handler for set_thresholds command
-@set_thresholds.error
-async def set_thresholds_error(
-        ctx: commands.Context,
-        error: commands.CommandError):  # Add type hint for error
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("你沒有權限設定閾值。")
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send("無效的閾值格式。請輸入兩個數字。例如: `!set_thresholds 10000 25000`")
+@set_thresholds_cmd.error
+async def set_thresholds_cmd_error(interaction: discord.Interaction,
+                                   error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("你沒有權限設定閾值。", ephemeral=True)
+    elif isinstance(error, app_commands.BadArgument):
+        await interaction.response.send_message(
+            "無效的閾值格式。請輸入兩個數字。例如: `/set_thresholds 10000 25000`",
+            ephemeral=True)
     else:
-        print(f"Unexpected error in set_thresholds: {error}")
+        print(f"Unexpected error in set_thresholds_cmd: {error}")
         traceback.print_exc()
-        await ctx.send("設定閾值時發生未知錯誤。")
+        await interaction.response.send_message("設定閾值時發生未知錯誤。", ephemeral=True)
 
 
-# Keep this last
 BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
 if not BOT_TOKEN:
     print("錯誤: 未找到環境變數 'DISCORD_BOT_TOKEN'. 請在 Replit Secrets 或環境變數中設定.")
